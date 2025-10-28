@@ -35,7 +35,7 @@ defmodule Eventual do
       {snapshot, events} = Eventual.get_aggregate_state("User", user_id)
   """
 
-  alias Eventual.{Repo, Event, Snapshot, Query}
+  alias Eventual.{Repo, Event, Snapshot, Query, Mermaid}
 
   @type aggregate_id :: String.t() | integer()
   @type aggregate_type :: String.t()
@@ -346,5 +346,143 @@ defmodule Eventual do
     starting_state = if snapshot, do: snapshot.data, else: initial_state
 
     Enum.reduce(events, starting_state, apply_event_fn)
+  end
+
+  ## Diagram Generation
+
+  @doc """
+  Generates a Mermaid timeline diagram from a list of events.
+
+  Timeline diagrams show events in chronological order with their timestamps.
+
+  ## Parameters
+  - `events` - List of events or filter options
+  - `opts` - Optional keyword list passed to `Mermaid.timeline/2`
+
+  ## Examples
+
+      # From a list of events
+      events = Eventual.list_events(aggregate_type: "User", aggregate_id: "123")
+      Eventual.generate_timeline(events)
+
+      # Using filters directly
+      Eventual.generate_timeline(aggregate_type: "Order", aggregate_id: "456")
+  """
+  @spec generate_timeline([Event.t()] | keyword(), keyword()) :: String.t()
+  def generate_timeline(events_or_filters, opts \\ [])
+
+  def generate_timeline(events, opts) when is_list(events) do
+    if Enum.all?(events, &is_struct(&1, Event)) do
+      Mermaid.timeline(events, opts)
+    else
+      # Treat as filters
+      events
+      |> list_events()
+      |> Mermaid.timeline(opts)
+    end
+  end
+
+  @doc """
+  Generates a Mermaid flowchart diagram from a list of events.
+
+  Flowcharts show the sequence of events with their relationships and data flow.
+
+  ## Parameters
+  - `events` - List of events or filter options
+  - `opts` - Optional keyword list passed to `Mermaid.flowchart/2`
+
+  ## Examples
+
+      events = Eventual.get_aggregate_events("User", "123")
+      Eventual.generate_flowchart(events, direction: :LR)
+  """
+  @spec generate_flowchart([Event.t()] | keyword(), keyword()) :: String.t()
+  def generate_flowchart(events_or_filters, opts \\ [])
+
+  def generate_flowchart(events, opts) when is_list(events) do
+    if Enum.all?(events, &is_struct(&1, Event)) do
+      Mermaid.flowchart(events, opts)
+    else
+      events
+      |> list_events()
+      |> Mermaid.flowchart(opts)
+    end
+  end
+
+  @doc """
+  Generates a Mermaid sequence diagram from a list of events.
+
+  Sequence diagrams show interactions between aggregates over time.
+
+  ## Parameters
+  - `events` - List of events or filter options
+  - `opts` - Optional keyword list passed to `Mermaid.sequence_diagram/2`
+
+  ## Examples
+
+      Eventual.generate_sequence_diagram(event_type: "order.created")
+  """
+  @spec generate_sequence_diagram([Event.t()] | keyword(), keyword()) :: String.t()
+  def generate_sequence_diagram(events_or_filters, opts \\ [])
+
+  def generate_sequence_diagram(events, opts) when is_list(events) do
+    if Enum.all?(events, &is_struct(&1, Event)) do
+      Mermaid.sequence_diagram(events, opts)
+    else
+      events
+      |> list_events()
+      |> Mermaid.sequence_diagram(opts)
+    end
+  end
+
+  @doc """
+  Generates a Mermaid state diagram from a list of events.
+
+  State diagrams show how an aggregate transitions through different states.
+
+  ## Parameters
+  - `events` - List of events or filter options
+  - `opts` - Optional keyword list passed to `Mermaid.state_diagram/2`
+
+  ## Examples
+
+      events = Eventual.get_aggregate_events("Order", order_id)
+      Eventual.generate_state_diagram(events)
+  """
+  @spec generate_state_diagram([Event.t()] | keyword(), keyword()) :: String.t()
+  def generate_state_diagram(events_or_filters, opts \\ [])
+
+  def generate_state_diagram(events, opts) when is_list(events) do
+    if Enum.all?(events, &is_struct(&1, Event)) do
+      Mermaid.state_diagram(events, opts)
+    else
+      events
+      |> list_events()
+      |> Mermaid.state_diagram(opts)
+    end
+  end
+
+  @doc """
+  Generates a Mermaid graph diagram showing relationships between aggregates.
+
+  ## Parameters
+  - `events` - List of events or filter options
+  - `opts` - Optional keyword list passed to `Mermaid.graph/2`
+
+  ## Examples
+
+      Eventual.generate_graph(aggregate_type: "User")
+  """
+  @spec generate_graph([Event.t()] | keyword(), keyword()) :: String.t()
+  def generate_graph(events_or_filters, opts \\ [])
+
+  def generate_graph(events, opts) when is_list(events) do
+    if Enum.all?(events, &is_struct(&1, Event)) do
+      Mermaid.graph(events, opts)
+    else
+      events
+      |> list_events()
+      |> Mermaid.graph(opts)
+    end
   end
 end

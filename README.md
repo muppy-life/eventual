@@ -12,6 +12,7 @@ An Elixir event store library for persisting and retrieving domain events with s
 - **Streaming Support** - Memory-efficient event streaming for large datasets
 - **Separate Database** - Isolated event store database connection
 - **Append-Only** - Immutable event log (no updates or deletes)
+- **Diagram Generation** - Generate Mermaid diagrams from event sequences for visualization
 
 ## Installation
 
@@ -99,6 +100,14 @@ For detailed usage examples and patterns, see [USAGE.md](USAGE.md).
 - `get_aggregate_state/2` - Get snapshot + subsequent events
 - `rebuild_from_snapshot/4` - Rebuild state using custom event handlers
 
+### Diagram Generation
+
+- `generate_timeline/2` - Generate Mermaid timeline diagram
+- `generate_flowchart/2` - Generate Mermaid flowchart diagram
+- `generate_sequence_diagram/2` - Generate Mermaid sequence diagram
+- `generate_state_diagram/2` - Generate Mermaid state diagram
+- `generate_graph/2` - Generate Mermaid graph showing aggregate relationships
+
 ## Testing
 
 The library includes comprehensive tests. To run them:
@@ -133,6 +142,7 @@ lib/eventual/
 ├── event.ex         # Event schema and validations
 ├── snapshot.ex      # Snapshot schema and validations
 ├── query.ex         # Query builders for filtering
+├── mermaid.ex       # Mermaid diagram generation
 └── eventual.ex      # Public API
 
 priv/repo/migrations/

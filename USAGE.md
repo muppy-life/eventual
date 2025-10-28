@@ -378,6 +378,301 @@ new_events = Eventual.get_aggregate_events(
 )
 ```
 
+## Visualizing Events with Mermaid Diagrams
+
+Eventual provides built-in support for generating [Mermaid](https://mermaid.js.org/) diagrams from event sequences. This is useful for documentation, debugging, and understanding event flows.
+
+### Timeline Diagrams
+
+Timeline diagrams show events in chronological order with their timestamps.
+
+```elixir
+# Get events for an aggregate
+events = Eventual.get_aggregate_events("User", "user-123")
+
+# Generate timeline
+diagram = Eventual.generate_timeline(events)
+IO.puts(diagram)
+```
+
+**Output:**
+```mermaid
+timeline
+    title Event Timeline
+    2024-01-01 : user.created (user-123)
+    2024-01-05 : user.updated (user-123)
+    2024-01-10 : user.email_verified (user-123)
+```
+
+**Options:**
+```elixir
+# Custom title
+Eventual.generate_timeline(events, title: "User Activity")
+
+# Different date formats
+Eventual.generate_timeline(events, date_format: :long)   # 2024-01-01 10:30
+Eventual.generate_timeline(events, date_format: :short)  # 2024-01-01 (default)
+Eventual.generate_timeline(events, date_format: :timestamp)  # Unix timestamp
+
+# Using filters directly instead of event list
+Eventual.generate_timeline(
+  aggregate_type: "Order",
+  aggregate_id: "order-456"
+)
+```
+
+### Flowchart Diagrams
+
+Flowcharts show the sequence of events with their relationships and data flow.
+
+```elixir
+events = Eventual.get_aggregate_events("Order", "order-456")
+
+# Generate flowchart
+diagram = Eventual.generate_flowchart(events)
+IO.puts(diagram)
+```
+
+**Output:**
+```mermaid
+flowchart TD
+    Start([Start])
+    E0[order.created]
+    E1[order.item_added]
+    E2[order.payment_received]
+    E3[order.completed]
+    End([End])
+    Start --> E0
+    E0 --> E1
+    E1 --> E2
+    E2 --> E3
+    E3 --> End
+```
+
+**Options:**
+```elixir
+# Left-to-right flow
+Eventual.generate_flowchart(events, direction: :LR)
+
+# Top-down flow (default)
+Eventual.generate_flowchart(events, direction: :TD)
+
+# Include event data in nodes
+Eventual.generate_flowchart(events, show_data: true)
+```
+
+### Sequence Diagrams
+
+Sequence diagrams show interactions between different aggregate types over time.
+
+```elixir
+# Get events from multiple aggregates
+events = Eventual.list_events(
+  event_type: ["order.created", "payment.processed", "inventory.updated"]
+)
+
+diagram = Eventual.generate_sequence_diagram(events)
+IO.puts(diagram)
+```
+
+**Output:**
+```mermaid
+sequenceDiagram
+    participant Order
+    participant Payment
+    participant Inventory
+    Order->>Order: order.created
+    Payment->>Payment: payment.processed
+    Inventory->>Inventory: inventory.updated
+```
+
+**Options:**
+```elixir
+# Include metadata as notes
+Eventual.generate_sequence_diagram(events, show_metadata: true)
+```
+
+### State Diagrams
+
+State diagrams visualize how an aggregate transitions through different states based on events.
+
+```elixir
+events = Eventual.get_aggregate_events("Order", "order-789")
+
+diagram = Eventual.generate_state_diagram(events)
+IO.puts(diagram)
+```
+
+**Output:**
+```mermaid
+stateDiagram-v2
+    [*] --> pending : order.created
+    pending --> paid : order.paid
+    paid --> shipped : order.shipped
+    shipped --> delivered : order.delivered
+    delivered --> [*]
+```
+
+**Custom State Extraction:**
+
+By default, the state diagram tries to extract state from the `status` field in event data. You can provide a custom extractor:
+
+```elixir
+# Custom state extractor function
+state_extractor = fn event ->
+  case event.event_type do
+    "order.created" -> "New"
+    "order.paid" -> "Processing"
+    "order.shipped" -> "InTransit"
+    "order.delivered" -> "Complete"
+    _ -> "Unknown"
+  end
+end
+
+Eventual.generate_state_diagram(events, state_extractor: state_extractor)
+```
+
+### Graph Diagrams
+
+Graph diagrams show relationships between different aggregates.
+
+```elixir
+# Get all events for a specific event type
+events = Eventual.list_events(event_type: "order.created")
+
+diagram = Eventual.generate_graph(events)
+IO.puts(diagram)
+```
+
+**Output:**
+```mermaid
+graph LR
+    Order_order_1["Order<br/>order-1<br/>(5 events)"]
+    Order_order_2["Order<br/>order-2<br/>(3 events)"]
+    User_user_1["User<br/>user-1<br/>(10 events)"]
+```
+
+**Options:**
+```elixir
+# Top-down layout
+Eventual.generate_graph(events, direction: :TD)
+
+# Left-right layout (default)
+Eventual.generate_graph(events, direction: :LR)
+```
+
+### Rendering Mermaid Diagrams
+
+The generated Mermaid syntax can be rendered in various ways:
+
+**1. GitHub/GitLab Markdown:**
+```markdown
+# Event Flow
+
+```mermaid
+<%= Eventual.generate_flowchart(events) %>
+` ``
+```
+
+**2. LiveBook:**
+```elixir
+events = Eventual.get_aggregate_events("User", user_id)
+diagram = Eventual.generate_timeline(events)
+
+Kino.Mermaid.new(diagram)
+```
+
+**3. Save to File:**
+```elixir
+events = Eventual.get_aggregate_events("Order", order_id)
+diagram = Eventual.generate_state_diagram(events)
+
+File.write!("docs/order-state-diagram.md", """
+# Order State Flow
+
+```mermaid
+#{diagram}
+` ``
+""")
+```
+
+**4. Web Rendering:**
+Use the [Mermaid Live Editor](https://mermaid.live/) to paste and render diagrams, or integrate [mermaid.js](https://github.com/mermaid-js/mermaid) into your web application.
+
+### Practical Examples
+
+**Debugging Event Sequences:**
+```elixir
+# When investigating an issue, visualize the event flow
+defmodule Debug do
+  def inspect_aggregate(aggregate_type, aggregate_id) do
+    events = Eventual.get_aggregate_events(aggregate_type, aggregate_id)
+
+    IO.puts("\n=== Timeline ===")
+    IO.puts(Eventual.generate_timeline(events))
+
+    IO.puts("\n=== State Transitions ===")
+    IO.puts(Eventual.generate_state_diagram(events))
+
+    IO.puts("\n=== Event Flow ===")
+    IO.puts(Eventual.generate_flowchart(events, direction: :LR))
+  end
+end
+
+Debug.inspect_aggregate("Order", "problematic-order-id")
+```
+
+**Documentation Generation:**
+```elixir
+# Generate documentation for all order states
+defmodule Docs.OrderStates do
+  def generate do
+    # Get a representative order with all state transitions
+    events = Eventual.get_aggregate_events("Order", "sample-order")
+
+    diagram = Eventual.generate_state_diagram(events)
+
+    File.write!("docs/order-states.md", """
+    # Order State Machine
+
+    This diagram shows all possible states an order can transition through:
+
+    ```mermaid
+    #{diagram}
+    ` ``
+
+    ## States
+
+    - **pending**: Order created but not yet paid
+    - **paid**: Payment received, awaiting fulfillment
+    - **shipped**: Order dispatched to customer
+    - **delivered**: Order received by customer
+    """)
+  end
+end
+```
+
+**Monitoring Event Patterns:**
+```elixir
+# Visualize recent activity across all users
+defmodule Monitor do
+  def user_activity_last_hour do
+    one_hour_ago = DateTime.utc_now() |> DateTime.add(-3600, :second)
+
+    events = Eventual.list_events(
+      aggregate_type: "User",
+      from: one_hour_ago,
+      limit: 100
+    )
+
+    sequence = Eventual.generate_sequence_diagram(events)
+
+    # Send to monitoring dashboard or log
+    Logger.info("User activity sequence:\n#{sequence}")
+  end
+end
+```
+
 ## Best Practices
 
 ### 1. Event Naming
