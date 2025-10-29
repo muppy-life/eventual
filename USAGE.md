@@ -382,6 +382,84 @@ new_events = Eventual.get_aggregate_events(
 
 Eventual provides built-in support for generating [Mermaid](https://mermaid.js.org/) diagrams from event sequences. This is useful for documentation, debugging, and understanding event flows.
 
+### Example: E-commerce Order Event Chain
+
+Here's a real-world example showing a complete order lifecycle visualized as a flowchart:
+
+```elixir
+# Save a sequence of order events
+order_id = "order-12345"
+
+Eventual.save_events([
+  %{
+    event_type: "order.created",
+    aggregate_id: order_id,
+    aggregate_type: "Order",
+    data: %{customer_id: "cust-1", items: ["item-1", "item-2"], total: 99.99}
+  },
+  %{
+    event_type: "order.payment_received",
+    aggregate_id: order_id,
+    aggregate_type: "Order",
+    data: %{payment_method: "credit_card", amount: 99.99}
+  },
+  %{
+    event_type: "order.inventory_reserved",
+    aggregate_id: order_id,
+    aggregate_type: "Order",
+    data: %{warehouse: "warehouse-A"}
+  },
+  %{
+    event_type: "order.shipped",
+    aggregate_id: order_id,
+    aggregate_type: "Order",
+    data: %{carrier: "FedEx", tracking: "TRK123456"}
+  },
+  %{
+    event_type: "order.delivered",
+    aggregate_id: order_id,
+    aggregate_type: "Order",
+    data: %{delivered_at: "2024-01-15 14:30:00"}
+  }
+])
+
+# Generate flowchart diagram
+events = Eventual.get_aggregate_events("Order", order_id)
+diagram = Eventual.generate_flowchart(events, direction: :TD)
+```
+
+**Rendered Diagram:**
+
+```mermaid
+flowchart TD
+    Start([Start])
+    E1[order.created<br/>customer_id: cust-1<br/>total: $99.99]
+    E2[order.payment_received<br/>payment_method: credit_card]
+    E3[order.inventory_reserved<br/>warehouse: warehouse-A]
+    E4[order.shipped<br/>carrier: FedEx<br/>tracking: TRK123456]
+    E5[order.delivered<br/>delivered_at: 2024-01-15]
+    End([End])
+
+    Start --> E1
+    E1 --> E2
+    E2 --> E3
+    E3 --> E4
+    E4 --> E5
+    E5 --> End
+
+    style E1 fill:#e1f5ff
+    style E2 fill:#d4edda
+    style E3 fill:#fff3cd
+    style E4 fill:#cce5ff
+    style E5 fill:#d1ecf1
+```
+
+This visualization makes it easy to:
+- **Understand the event flow** at a glance
+- **Debug issues** by identifying where the process stopped
+- **Document business processes** in your codebase
+- **Communicate with stakeholders** about system behavior
+
 ### Timeline Diagrams
 
 Timeline diagrams show events in chronological order with their timestamps.

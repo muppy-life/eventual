@@ -108,6 +108,32 @@ For detailed usage examples and patterns, see [USAGE.md](USAGE.md).
 - `generate_state_diagram/2` - Generate Mermaid state diagram
 - `generate_graph/2` - Generate Mermaid graph showing aggregate relationships
 
+**Example Event Chain Visualization:**
+
+```mermaid
+flowchart TD
+    Start([Start])
+    E1[order.created<br/>customer_id: cust-1<br/>total: $99.99]
+    E2[order.payment_received<br/>payment_method: credit_card]
+    E3[order.inventory_reserved<br/>warehouse: warehouse-A]
+    E4[order.shipped<br/>carrier: FedEx<br/>tracking: TRK123456]
+    E5[order.delivered<br/>delivered_at: 2024-01-15]
+    End([End])
+
+    Start --> E1
+    E1 --> E2
+    E2 --> E3
+    E3 --> E4
+    E4 --> E5
+    E5 --> End
+
+    style E1 fill:#e1f5ff
+    style E2 fill:#d4edda
+    style E3 fill:#fff3cd
+    style E4 fill:#cce5ff
+    style E5 fill:#d1ecf1
+```
+
 ## Testing
 
 The library includes comprehensive tests. To run them:
