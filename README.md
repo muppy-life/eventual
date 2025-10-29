@@ -114,8 +114,7 @@ The library includes comprehensive tests. To run them:
 
 ```bash
 # Start PostgreSQL (if not already running)
-# On macOS with Homebrew:
-brew services start postgresql
+./scripts/start_postgres.sh
 
 # Create test database and run migrations
 MIX_ENV=test mix ecto.create -r Eventual.Repo
