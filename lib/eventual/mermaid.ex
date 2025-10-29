@@ -74,6 +74,7 @@ defmodule Eventual.Mermaid do
   Generates a Mermaid flowchart diagram from a list of events.
 
   Flowcharts show the sequence of events with their relationships and data flow.
+  Events are ordered by sequence_number (if available) or by occurred_at timestamp.
 
   ## Parameters
 
@@ -84,7 +85,7 @@ defmodule Eventual.Mermaid do
 
   ## Returns
 
-  A string containing Mermaid flowchart syntax.
+  A string containing Mermaid flowchart syntax with ordering information.
 
   ## Examples
 
@@ -98,9 +99,14 @@ defmodule Eventual.Mermaid do
     direction = Keyword.get(opts, :direction, :TD)
     show_data = Keyword.get(opts, :show_data, false)
 
-    sorted_events =
-      events
-      |> Enum.sort_by(& &1.sequence_number)
+    has_sequence_numbers = Enum.all?(events, fn e -> not is_nil(e.sequence_number) end)
+
+    {sorted_events, order_by} =
+      if has_sequence_numbers do
+        {Enum.sort_by(events, & &1.sequence_number), "sequence_number"}
+      else
+        {Enum.sort_by(events, & &1.occurred_at, DateTime), "occurred_at"}
+      end
 
     nodes =
       sorted_events
@@ -137,7 +143,9 @@ defmodule Eventual.Mermaid do
         ["    Start --> End"]
       end
 
-    ["flowchart #{direction}", start_node | nodes]
+    ordering_comment = "    %% Events ordered by: #{order_by}"
+
+    ["flowchart #{direction}", ordering_comment, start_node | nodes]
     |> Kernel.++(start_edge)
     |> Kernel.++(edges)
     |> Kernel.++(end_edge)
@@ -366,14 +374,14 @@ defmodule Eventual.Mermaid do
   defp pad(num), do: to_string(num)
 
   defp format_event_label(event, show_data) do
-    base = "#{event.event_type}"
+    base = "#{event.event_type}<br/>ID: #{event.aggregate_id}"
 
     if show_data and event.data != %{} do
       data_preview =
         event.data
         |> Enum.take(2)
-        |> Enum.map(fn {k, v} -> "#{k}:#{inspect(v)}" end)
-        |> Enum.join(", ")
+        |> Enum.map(fn {k, v} -> "#{k}: #{inspect(v)}" end)
+        |> Enum.join("<br/>")
 
       "#{base}<br/>#{data_preview}"
     else

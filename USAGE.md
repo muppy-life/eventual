@@ -423,7 +423,7 @@ Eventual.save_events([
   }
 ])
 
-# Generate flowchart diagram
+# Generate flowchart diagram (automatically ordered by sequence_number or occurred_at)
 events = Eventual.get_aggregate_events("Order", order_id)
 diagram = Eventual.generate_flowchart(events, direction: :TD)
 
@@ -431,32 +431,33 @@ diagram = Eventual.generate_flowchart(events, direction: :TD)
 IO.puts(diagram)
 ```
 
-The command `Eventual.generate_flowchart(events, direction: :TD)` produces the following Mermaid diagram:
+The command `Eventual.generate_flowchart(events, direction: :TD)` produces the following Mermaid diagram. Note that each event shows its `event_type` and `aggregate_id`, and the diagram includes an ordering indicator showing whether events are ordered by `sequence_number` or `occurred_at`:
 
 **Rendered Diagram:**
 
 ```mermaid
 flowchart TD
+    %% Events ordered by: sequence_number
     Start([Start])
-    E1[order.created<br/>customer_id: cust-1<br/>total: $99.99]
-    E2[order.payment_received<br/>payment_method: credit_card]
-    E3[order.inventory_reserved<br/>warehouse: warehouse-A]
-    E4[order.shipped<br/>carrier: FedEx<br/>tracking: TRK123456]
-    E5[order.delivered<br/>delivered_at: 2024-01-15]
+    E0[order.created<br/>ID: order-12345]
+    E1[order.payment_received<br/>ID: order-12345]
+    E2[order.inventory_reserved<br/>ID: order-12345]
+    E3[order.shipped<br/>ID: order-12345]
+    E4[order.delivered<br/>ID: order-12345]
     End([End])
 
-    Start --> E1
+    Start --> E0
+    E0 --> E1
     E1 --> E2
     E2 --> E3
     E3 --> E4
-    E4 --> E5
-    E5 --> End
+    E4 --> End
 
-    style E1 fill:#e1f5ff
-    style E2 fill:#d4edda
-    style E3 fill:#fff3cd
-    style E4 fill:#cce5ff
-    style E5 fill:#d1ecf1
+    style E0 fill:#e1f5ff
+    style E1 fill:#d4edda
+    style E2 fill:#fff3cd
+    style E3 fill:#cce5ff
+    style E4 fill:#d1ecf1
 ```
 
 This visualization makes it easy to:

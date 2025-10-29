@@ -108,10 +108,11 @@ defmodule EventualMermaidTest do
       result = Mermaid.flowchart(events)
 
       assert result =~ "flowchart TD"
+      assert result =~ "%% Events ordered by: sequence_number"
       assert result =~ "Start([Start])"
       assert result =~ "End([End])"
-      assert result =~ "E0[user.created]"
-      assert result =~ "E1[user.updated]"
+      assert result =~ "E0[user.created<br/>ID: user-1]"
+      assert result =~ "E1[user.updated<br/>ID: user-1]"
       assert result =~ "Start --> E0"
       assert result =~ "E0 --> E1"
       assert result =~ "E1 --> End"
@@ -151,6 +152,7 @@ defmodule EventualMermaidTest do
       result = Mermaid.flowchart(events, show_data: true)
 
       assert result =~ "user.created"
+      assert result =~ "ID: user-1"
       assert result =~ "<br/>"
     end
 
@@ -158,6 +160,7 @@ defmodule EventualMermaidTest do
       result = Mermaid.flowchart([])
 
       assert result =~ "flowchart TD"
+      assert result =~ "%% Events ordered by: sequence_number"
       assert result =~ "Start --> End"
     end
   end
