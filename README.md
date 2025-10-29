@@ -121,13 +121,13 @@ IO.puts(diagram)
 
 ```mermaid
 flowchart TD
-    %% Events ordered by: sequence_number
+    %% Events ordered by: occurred_at
     Start([Start])
-    E0[order.created<br/>ID: order-12345]
-    E1[order.payment_received<br/>ID: order-12345]
-    E2[order.inventory_reserved<br/>ID: order-12345]
-    E3[order.shipped<br/>ID: order-12345]
-    E4[order.delivered<br/>ID: order-12345]
+    E0[order.created<br/>ID: order-12345<br/>occurred_at: 2024-01-10 09:00:00]
+    E1[order.payment_received<br/>ID: order-12345<br/>occurred_at: 2024-01-10 09:15:00]
+    E2[order.inventory_reserved<br/>ID: order-12345<br/>occurred_at: 2024-01-10 09:30:00]
+    E3[order.shipped<br/>ID: order-12345<br/>occurred_at: 2024-01-10 14:00:00]
+    E4[order.delivered<br/>ID: order-12345<br/>occurred_at: 2024-01-15 10:30:00]
     End([End])
 
     Start --> E0

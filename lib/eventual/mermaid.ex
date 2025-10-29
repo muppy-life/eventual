@@ -113,7 +113,8 @@ defmodule Eventual.Mermaid do
       |> Enum.with_index()
       |> Enum.map(fn {event, idx} ->
         node_id = "E#{idx}"
-        label = format_event_label(event, show_data)
+        order_value = if has_sequence_numbers, do: event.sequence_number, else: format_timestamp(event.occurred_at)
+        label = format_event_label(event, show_data, order_value, order_by)
         "    #{node_id}[#{label}]"
       end)
 
@@ -373,8 +374,8 @@ defmodule Eventual.Mermaid do
   defp pad(num) when num < 10, do: "0#{num}"
   defp pad(num), do: to_string(num)
 
-  defp format_event_label(event, show_data) do
-    base = "#{event.event_type}<br/>ID: #{event.aggregate_id}"
+  defp format_event_label(event, show_data, order_value, order_by) do
+    base = "#{event.event_type}<br/>ID: #{event.aggregate_id}<br/>#{order_by}: #{order_value}"
 
     if show_data and event.data != %{} do
       data_preview =
@@ -387,6 +388,10 @@ defmodule Eventual.Mermaid do
     else
       base
     end
+  end
+
+  defp format_timestamp(datetime) do
+    "#{datetime.year}-#{pad(datetime.month)}-#{pad(datetime.day)} #{pad(datetime.hour)}:#{pad(datetime.minute)}:#{pad(datetime.second)}"
   end
 
   defp default_state_extractor(event) do

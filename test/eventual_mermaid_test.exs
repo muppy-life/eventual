@@ -111,8 +111,8 @@ defmodule EventualMermaidTest do
       assert result =~ "%% Events ordered by: sequence_number"
       assert result =~ "Start([Start])"
       assert result =~ "End([End])"
-      assert result =~ "E0[user.created<br/>ID: user-1]"
-      assert result =~ "E1[user.updated<br/>ID: user-1]"
+      assert result =~ "E0[user.created<br/>ID: user-1<br/>sequence_number: 1]"
+      assert result =~ "E1[user.updated<br/>ID: user-1<br/>sequence_number: 2]"
       assert result =~ "Start --> E0"
       assert result =~ "E0 --> E1"
       assert result =~ "E1 --> End"
@@ -153,6 +153,7 @@ defmodule EventualMermaidTest do
 
       assert result =~ "user.created"
       assert result =~ "ID: user-1"
+      assert result =~ "sequence_number: 1"
       assert result =~ "<br/>"
     end
 
@@ -162,6 +163,39 @@ defmodule EventualMermaidTest do
       assert result =~ "flowchart TD"
       assert result =~ "%% Events ordered by: sequence_number"
       assert result =~ "Start --> End"
+    end
+
+    test "generates flowchart ordered by occurred_at when no sequence_numbers" do
+      events = [
+        %Event{
+          event_type: "order.created",
+          aggregate_id: "order-1",
+          aggregate_type: "Order",
+          data: %{},
+          metadata: %{},
+          sequence_number: nil,
+          occurred_at: ~U[2024-01-10 09:00:00Z]
+        },
+        %Event{
+          event_type: "order.paid",
+          aggregate_id: "order-1",
+          aggregate_type: "Order",
+          data: %{},
+          metadata: %{},
+          sequence_number: nil,
+          occurred_at: ~U[2024-01-10 09:15:00Z]
+        }
+      ]
+
+      result = Mermaid.flowchart(events)
+
+      assert result =~ "flowchart TD"
+      assert result =~ "%% Events ordered by: occurred_at"
+      assert result =~ "E0[order.created<br/>ID: order-1<br/>occurred_at: 2024-01-10 09:00:00]"
+      assert result =~ "E1[order.paid<br/>ID: order-1<br/>occurred_at: 2024-01-10 09:15:00]"
+      assert result =~ "Start --> E0"
+      assert result =~ "E0 --> E1"
+      assert result =~ "E1 --> End"
     end
   end
 
