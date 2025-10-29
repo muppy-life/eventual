@@ -110,6 +110,15 @@ For detailed usage examples and patterns, see [USAGE.md](USAGE.md).
 
 **Example Event Chain Visualization:**
 
+```elixir
+# Get events for an order
+events = Eventual.get_aggregate_events("Order", "order-12345")
+
+# Generate flowchart diagram
+diagram = Eventual.generate_flowchart(events, direction: :TD)
+IO.puts(diagram)
+```
+
 ```mermaid
 flowchart TD
     Start([Start])

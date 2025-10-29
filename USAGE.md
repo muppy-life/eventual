@@ -426,7 +426,12 @@ Eventual.save_events([
 # Generate flowchart diagram
 events = Eventual.get_aggregate_events("Order", order_id)
 diagram = Eventual.generate_flowchart(events, direction: :TD)
+
+# Print the diagram
+IO.puts(diagram)
 ```
+
+The command `Eventual.generate_flowchart(events, direction: :TD)` produces the following Mermaid diagram:
 
 **Rendered Diagram:**
 
