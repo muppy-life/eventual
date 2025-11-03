@@ -44,33 +44,36 @@ mix ecto.migrate -r Eventual.Repo
 
 ```elixir
 # Save a single event
-{:ok, event} = Eventual.save_event(
-  "user.created",           # event type
-  "user-123",               # aggregate ID
-  "User",                   # aggregate type
-  %{                        # event data
+event = %Eventual.Event{
+  event_type: "user.created",
+  aggregate_id: "user-123",
+  aggregate_type: "User",
+  data: %{
     name: "John Doe",
     email: "john@example.com"
   }
-)
+}
+{:ok, saved_event} = Eventual.save_event(event)
 
 # Save event with metadata
-{:ok, event} = Eventual.save_event(
-  "order.placed",
-  order_id,
-  "Order",
-  %{items: ["item1", "item2"], total: 99.99},
+event = %Eventual.Event{
+  event_type: "order.placed",
+  aggregate_id: order_id,
+  aggregate_type: "Order",
+  data: %{items: ["item1", "item2"], total: 99.99},
   metadata: %{user_id: "user-123", ip: "192.168.1.1"}
-)
+}
+{:ok, saved_event} = Eventual.save_event(event)
 
 # Save event with custom timestamp
-{:ok, event} = Eventual.save_event(
-  "payment.completed",
-  payment_id,
-  "Payment",
-  %{amount: 50.00, method: "credit_card"},
+event = %Eventual.Event{
+  event_type: "payment.completed",
+  aggregate_id: payment_id,
+  aggregate_type: "Payment",
+  data: %{amount: 50.00, method: "credit_card"},
   occurred_at: ~U[2024-01-15 10:30:00Z]
-)
+}
+{:ok, saved_event} = Eventual.save_event(event)
 ```
 
 ### Batch Saving Events
@@ -78,13 +81,13 @@ mix ecto.migrate -r Eventual.Repo
 ```elixir
 # Save multiple events in a transaction
 events = [
-  %{
+  %Eventual.Event{
     event_type: "user.created",
     aggregate_id: "user-1",
     aggregate_type: "User",
     data: %{name: "Alice"}
   },
-  %{
+  %Eventual.Event{
     event_type: "user.created",
     aggregate_id: "user-2",
     aggregate_type: "User",
@@ -137,21 +140,23 @@ user_state = %{
   orders_count: 50
 }
 
-{:ok, snapshot} = Eventual.save_snapshot(
-  "User",                   # aggregate type
-  "user-123",               # aggregate ID
-  user_state,               # computed state
-  100                       # sequence number (last event processed)
-)
+snapshot = %Eventual.Snapshot{
+  aggregate_type: "User",
+  aggregate_id: "user-123",
+  data: user_state,
+  sequence_number: 100  # last event processed
+}
+{:ok, saved_snapshot} = Eventual.save_snapshot(snapshot)
 
 # Snapshot with metadata
-{:ok, snapshot} = Eventual.save_snapshot(
-  "User",
-  "user-123",
-  user_state,
-  100,
+snapshot = %Eventual.Snapshot{
+  aggregate_type: "User",
+  aggregate_id: "user-123",
+  data: user_state,
+  sequence_number: 100,
   metadata: %{created_by: "background_job", reason: "daily_snapshot"}
-)
+}
+{:ok, saved_snapshot} = Eventual.save_snapshot(snapshot)
 ```
 
 ### Retrieving Snapshots
@@ -234,42 +239,49 @@ defmodule MyApp.OrderService do
   Service for managing orders using event sourcing.
   """
 
+  alias Eventual.Event
+  alias Eventual.Snapshot
+
   # Create a new order
   def create_order(order_id, customer_id, items) do
-    Eventual.save_event(
-      "order.created",
-      order_id,
-      "Order",
-      %{
+    event = %Event{
+      event_type: "order.created",
+      aggregate_id: order_id,
+      aggregate_type: "Order",
+      data: %{
         customer_id: customer_id,
         items: items,
         status: "pending",
         total: calculate_total(items)
       },
       metadata: %{customer_id: customer_id}
-    )
+    }
+
+    Eventual.save_event(event)
   end
 
   # Add item to order
   def add_item(order_id, item) do
-    Eventual.save_event(
-      "order.item_added",
-      order_id,
-      "Order",
-      %{item: item}
-    )
+    event = %Event{
+      event_type: "order.item_added",
+      aggregate_id: order_id,
+      aggregate_type: "Order",
+      data: %{item: item}
+    }
+
+    Eventual.save_event(event)
   end
 
   # Complete the order
   def complete_order(order_id, payment_info) do
     events = [
-      %{
+      %Event{
         event_type: "order.payment_received",
         aggregate_id: order_id,
         aggregate_type: "Order",
         data: %{payment: payment_info}
       },
-      %{
+      %Event{
         event_type: "order.completed",
         aggregate_id: order_id,
         aggregate_type: "Order",
@@ -298,7 +310,15 @@ defmodule MyApp.OrderService do
   # Create snapshot after significant changes
   def snapshot_order(order_id, sequence_number) do
     state = get_current_order_state(order_id)
-    Eventual.save_snapshot("Order", order_id, state, sequence_number)
+
+    snapshot = %Snapshot{
+      aggregate_type: "Order",
+      aggregate_id: order_id,
+      data: state,
+      sequence_number: sequence_number
+    }
+
+    Eventual.save_snapshot(snapshot)
   end
 
   # Apply order events to rebuild state
@@ -391,31 +411,31 @@ Here's a real-world example showing a complete order lifecycle visualized as a f
 order_id = "order-12345"
 
 Eventual.save_events([
-  %{
+  %Eventual.Event{
     event_type: "order.created",
     aggregate_id: order_id,
     aggregate_type: "Order",
     data: %{customer_id: "cust-1", items: ["item-1", "item-2"], total: 99.99}
   },
-  %{
+  %Eventual.Event{
     event_type: "order.payment_received",
     aggregate_id: order_id,
     aggregate_type: "Order",
     data: %{payment_method: "credit_card", amount: 99.99}
   },
-  %{
+  %Eventual.Event{
     event_type: "order.inventory_reserved",
     aggregate_id: order_id,
     aggregate_type: "Order",
     data: %{warehouse: "warehouse-A"}
   },
-  %{
+  %Eventual.Event{
     event_type: "order.shipped",
     aggregate_id: order_id,
     aggregate_type: "Order",
     data: %{carrier: "FedEx", tracking: "TRK123456"}
   },
-  %{
+  %Eventual.Event{
     event_type: "order.delivered",
     aggregate_id: order_id,
     aggregate_type: "Order",
@@ -773,17 +793,19 @@ Create snapshots:
 ### 3. Metadata Usage
 Store correlation IDs and causation IDs in metadata:
 ```elixir
-Eventual.save_event(
-  "order.created",
-  order_id,
-  "Order",
-  order_data,
+event = %Eventual.Event{
+  event_type: "order.created",
+  aggregate_id: order_id,
+  aggregate_type: "Order",
+  data: order_data,
   metadata: %{
     correlation_id: correlation_id,  # Links related events
     causation_id: originating_event_id,  # What caused this event
     user_id: user_id
   }
-)
+}
+
+Eventual.save_event(event)
 ```
 
 ### 4. Sequence Numbers
@@ -793,13 +815,15 @@ Let the application manage sequence numbers when order matters:
 last_event = Eventual.get_aggregate_events("User", user_id, limit: 1)
 next_seq = if last_event, do: last_event.sequence_number + 1, else: 1
 
-Eventual.save_event(
-  "user.updated",
-  user_id,
-  "User",
-  data,
+event = %Eventual.Event{
+  event_type: "user.updated",
+  aggregate_id: user_id,
+  aggregate_type: "User",
+  data: data,
   sequence_number: next_seq
-)
+}
+
+Eventual.save_event(event)
 ```
 
 ### 5. Transaction Boundaries
@@ -807,9 +831,9 @@ Use `save_events/1` when multiple events must be atomic:
 ```elixir
 # These events must all succeed or all fail together
 events = [
-  %{event_type: "inventory.reserved", ...},
-  %{event_type: "order.created", ...},
-  %{event_type: "payment.pending", ...}
+  %Eventual.Event{event_type: "inventory.reserved", aggregate_id: order_id, aggregate_type: "Inventory", data: %{...}},
+  %Eventual.Event{event_type: "order.created", aggregate_id: order_id, aggregate_type: "Order", data: %{...}},
+  %Eventual.Event{event_type: "payment.pending", aggregate_id: order_id, aggregate_type: "Payment", data: %{...}}
 ]
 
 {:ok, _} = Eventual.save_events(events)

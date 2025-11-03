@@ -55,19 +55,26 @@ mix ecto.migrate -r Eventual.Repo
 
 ```elixir
 # Save an event
-{:ok, event} = Eventual.save_event(
-  "user.created",
-  "user-123",
-  "User",
-  %{name: "John Doe", email: "john@example.com"}
-)
+event = %Eventual.Event{
+  event_type: "user.created",
+  aggregate_id: "user-123",
+  aggregate_type: "User",
+  data: %{name: "John Doe", email: "john@example.com"}
+}
+{:ok, saved_event} = Eventual.save_event(event)
 
 # Retrieve events for an aggregate
 events = Eventual.get_aggregate_events("User", "user-123")
 
 # Create a snapshot
 state = %{name: "John Doe", email: "john@example.com", balance: 1000}
-{:ok, snapshot} = Eventual.save_snapshot("User", "user-123", state, 100)
+snapshot = %Eventual.Snapshot{
+  aggregate_type: "User",
+  aggregate_id: "user-123",
+  data: state,
+  sequence_number: 100
+}
+{:ok, saved_snapshot} = Eventual.save_snapshot(snapshot)
 
 # Rebuild state efficiently
 {snapshot, events} = Eventual.get_aggregate_state("User", "user-123")
@@ -81,8 +88,8 @@ For detailed usage examples and patterns, see [USAGE.md](USAGE.md).
 
 ### Event Operations
 
-- `save_event/5` - Save a single event
-- `save_events/1` - Batch save events in a transaction
+- `save_event/1` - Save a single event (accepts `%Event{}` struct)
+- `save_events/1` - Batch save events in a transaction (accepts list of `%Event{}` structs)
 - `get_event/1` - Retrieve event by ID
 - `list_events/1` - List events with filters
 - `stream_events/1` - Stream events efficiently
@@ -90,7 +97,7 @@ For detailed usage examples and patterns, see [USAGE.md](USAGE.md).
 
 ### Snapshot Operations
 
-- `save_snapshot/5` - Save aggregate state snapshot
+- `save_snapshot/1` - Save aggregate state snapshot (accepts `%Snapshot{}` struct)
 - `get_latest_snapshot/2` - Get most recent snapshot
 - `get_snapshot_at/3` - Get snapshot at specific sequence
 - `list_snapshots/3` - List all snapshots for an aggregate

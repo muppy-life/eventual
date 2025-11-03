@@ -10,7 +10,13 @@ defmodule Eventual do
 
   Save events to the event store:
 
-      Eventual.save_event("user.created", user_id, "User", %{name: "John"})
+      event = %Eventual.Event{
+        event_type: "user.created",
+        aggregate_id: user_id,
+        aggregate_type: "User",
+        data: %{name: "John"}
+      }
+      Eventual.save_event(event)
       Eventual.save_events([event1, event2, event3])
 
   Retrieve events:
@@ -24,7 +30,13 @@ defmodule Eventual do
 
   Create and retrieve snapshots:
 
-      Eventual.save_snapshot("User", user_id, computed_state, 100)
+      snapshot = %Eventual.Snapshot{
+        aggregate_type: "User",
+        aggregate_id: user_id,
+        data: computed_state,
+        sequence_number: 100
+      }
+      Eventual.save_snapshot(snapshot)
       Eventual.get_latest_snapshot("User", user_id)
       Eventual.list_snapshots("User", user_id)
 
@@ -47,39 +59,38 @@ defmodule Eventual do
   Saves a single event to the event store.
 
   ## Parameters
-  - `event_type` - Type of event (e.g., "user.created")
-  - `aggregate_id` - ID of the entity this event relates to
-  - `aggregate_type` - Type of entity (e.g., "User", "Order")
-  - `data` - Event payload (will be stored as JSON)
-  - `opts` - Optional parameters:
-    - `:metadata` - Additional context map
-    - `:occurred_at` - When the event occurred (defaults to now)
+  - `event` - An `%Event{}` struct with the following fields:
+    - `:event_type` - Type of event (e.g., "user.created")
+    - `:aggregate_id` - ID of the entity this event relates to
+    - `:aggregate_type` - Type of entity (e.g., "User", "Order")
+    - `:data` - Event payload (will be stored as JSON)
+    - `:metadata` - Additional context map (optional)
+    - `:occurred_at` - When the event occurred (optional, defaults to now)
     - `:sequence_number` - Explicit sequence number (optional)
 
   ## Examples
 
-      Eventual.save_event("user.created", "123", "User", %{name: "John"})
+      event = %Eventual.Event{
+        event_type: "user.created",
+        aggregate_id: "123",
+        aggregate_type: "User",
+        data: %{name: "John"}
+      }
+      Eventual.save_event(event)
 
-      Eventual.save_event("order.placed", order_id, "Order",
-        %{items: [...]},
+      event = %Eventual.Event{
+        event_type: "order.placed",
+        aggregate_id: order_id,
+        aggregate_type: "Order",
+        data: %{items: [...]},
         metadata: %{user_id: "123", ip: "192.168.1.1"}
-      )
+      }
+      Eventual.save_event(event)
   """
-  @spec save_event(event_type(), aggregate_id(), aggregate_type(), map(), keyword()) ::
-          {:ok, Event.t()} | {:error, Ecto.Changeset.t()}
-  def save_event(event_type, aggregate_id, aggregate_type, data, opts \\ []) do
-    attrs = %{
-      event_type: event_type,
-      aggregate_id: to_string(aggregate_id),
-      aggregate_type: aggregate_type,
-      data: data,
-      metadata: Keyword.get(opts, :metadata, %{}),
-      occurred_at: Keyword.get(opts, :occurred_at),
-      sequence_number: Keyword.get(opts, :sequence_number)
-    }
-
+  @spec save_event(Event.t()) :: {:ok, Event.t()} | {:error, Ecto.Changeset.t()}
+  def save_event(%Event{} = event) do
     %Event{}
-    |> Event.changeset(attrs)
+    |> Event.changeset(Map.from_struct(event))
     |> Repo.insert()
   end
 
@@ -87,27 +98,22 @@ defmodule Eventual do
   Saves multiple events in a single database transaction.
 
   ## Parameters
-  - `events` - List of event maps, each containing:
-    - `:event_type`
-    - `:aggregate_id`
-    - `:aggregate_type`
-    - `:data`
-    - Optional: `:metadata`, `:occurred_at`, `:sequence_number`
+  - `events` - List of `%Event{}` structs
 
   ## Examples
 
       events = [
-        %{event_type: "user.created", aggregate_id: "1", aggregate_type: "User", data: %{}},
-        %{event_type: "user.updated", aggregate_id: "1", aggregate_type: "User", data: %{}}
+        %Eventual.Event{event_type: "user.created", aggregate_id: "1", aggregate_type: "User", data: %{}},
+        %Eventual.Event{event_type: "user.updated", aggregate_id: "1", aggregate_type: "User", data: %{}}
       ]
       Eventual.save_events(events)
   """
-  @spec save_events([map()]) :: {:ok, [Event.t()]} | {:error, any()}
+  @spec save_events([Event.t()]) :: {:ok, [Event.t()]} | {:error, any()}
   def save_events(events) when is_list(events) do
     Repo.transaction(fn ->
-      Enum.map(events, fn event_attrs ->
+      Enum.map(events, fn %Event{} = event ->
         %Event{}
-        |> Event.changeset(event_attrs)
+        |> Event.changeset(Map.from_struct(event))
         |> Repo.insert!()
       end)
     end)
@@ -193,31 +199,28 @@ defmodule Eventual do
   Saves a snapshot of an aggregate's state.
 
   ## Parameters
-  - `aggregate_type` - Type of entity (e.g., "User")
-  - `aggregate_id` - ID of the entity
-  - `data` - Computed state to snapshot
-  - `sequence_number` - Last event sequence number included in this state
-  - `opts` - Optional parameters:
-    - `:metadata` - Additional snapshot metadata
+  - `snapshot` - A `%Snapshot{}` struct with the following fields:
+    - `:aggregate_type` - Type of entity (e.g., "User")
+    - `:aggregate_id` - ID of the entity
+    - `:data` - Computed state to snapshot
+    - `:sequence_number` - Last event sequence number included in this state
+    - `:metadata` - Additional snapshot metadata (optional)
 
   ## Examples
 
       state = %{name: "John", email: "john@example.com", balance: 1000}
-      Eventual.save_snapshot("User", "123", state, 100)
+      snapshot = %Eventual.Snapshot{
+        aggregate_type: "User",
+        aggregate_id: "123",
+        data: state,
+        sequence_number: 100
+      }
+      Eventual.save_snapshot(snapshot)
   """
-  @spec save_snapshot(aggregate_type(), aggregate_id(), map(), integer(), keyword()) ::
-          {:ok, Snapshot.t()} | {:error, Ecto.Changeset.t()}
-  def save_snapshot(aggregate_type, aggregate_id, data, sequence_number, opts \\ []) do
-    attrs = %{
-      aggregate_type: aggregate_type,
-      aggregate_id: to_string(aggregate_id),
-      data: data,
-      sequence_number: sequence_number,
-      metadata: Keyword.get(opts, :metadata, %{})
-    }
-
+  @spec save_snapshot(Snapshot.t()) :: {:ok, Snapshot.t()} | {:error, Ecto.Changeset.t()}
+  def save_snapshot(%Snapshot{} = snapshot) do
     %Snapshot{}
-    |> Snapshot.changeset(attrs)
+    |> Snapshot.changeset(Map.from_struct(snapshot))
     |> Repo.insert()
   end
 

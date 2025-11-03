@@ -2,6 +2,8 @@ defmodule EventualTest do
   use ExUnit.Case, async: true
 
   alias Eventual.Repo
+  alias Eventual.Event
+  alias Eventual.Snapshot
 
   setup do
     # Explicitly get a connection before each test
@@ -9,74 +11,82 @@ defmodule EventualTest do
     :ok
   end
 
-  describe "save_event/5" do
+  describe "save_event/1" do
     test "saves a single event successfully" do
-      {:ok, event} = Eventual.save_event(
-        "user.created",
-        "user-123",
-        "User",
-        %{name: "John Doe", email: "john@example.com"}
-      )
+      event = %Event{
+        event_type: "user.created",
+        aggregate_id: "user-123",
+        aggregate_type: "User",
+        data: %{name: "John Doe", email: "john@example.com"}
+      }
 
-      assert event.event_type == "user.created"
-      assert event.aggregate_id == "user-123"
-      assert event.aggregate_type == "User"
-      assert event.data == %{name: "John Doe", email: "john@example.com"}
-      assert event.metadata == %{}
-      assert event.id != nil
-      assert event.occurred_at != nil
-      assert event.inserted_at != nil
+      {:ok, saved_event} = Eventual.save_event(event)
+
+      assert saved_event.event_type == "user.created"
+      assert saved_event.aggregate_id == "user-123"
+      assert saved_event.aggregate_type == "User"
+      assert saved_event.data == %{name: "John Doe", email: "john@example.com"}
+      assert saved_event.metadata == %{}
+      assert saved_event.id != nil
+      assert saved_event.occurred_at != nil
+      assert saved_event.inserted_at != nil
     end
 
     test "saves event with metadata" do
-      {:ok, event} = Eventual.save_event(
-        "order.placed",
-        "order-456",
-        "Order",
-        %{total: 99.99},
+      event = %Event{
+        event_type: "order.placed",
+        aggregate_id: "order-456",
+        aggregate_type: "Order",
+        data: %{total: 99.99},
         metadata: %{user_id: "user-123", ip: "192.168.1.1"}
-      )
+      }
 
-      assert event.metadata == %{user_id: "user-123", ip: "192.168.1.1"}
+      {:ok, saved_event} = Eventual.save_event(event)
+
+      assert saved_event.metadata == %{user_id: "user-123", ip: "192.168.1.1"}
     end
 
     test "saves event with custom occurred_at timestamp" do
       custom_time = ~U[2024-01-15 10:30:00Z]
 
-      {:ok, event} = Eventual.save_event(
-        "payment.completed",
-        "payment-789",
-        "Payment",
-        %{amount: 50.00},
+      event = %Event{
+        event_type: "payment.completed",
+        aggregate_id: "payment-789",
+        aggregate_type: "Payment",
+        data: %{amount: 50.00},
         occurred_at: custom_time
-      )
+      }
 
-      assert DateTime.compare(event.occurred_at, custom_time) == :eq
+      {:ok, saved_event} = Eventual.save_event(event)
+
+      assert DateTime.compare(saved_event.occurred_at, custom_time) == :eq
     end
 
     test "saves event with sequence number" do
-      {:ok, event} = Eventual.save_event(
-        "user.updated",
-        "user-123",
-        "User",
-        %{email: "newemail@example.com"},
+      event = %Event{
+        event_type: "user.updated",
+        aggregate_id: "user-123",
+        aggregate_type: "User",
+        data: %{email: "newemail@example.com"},
         sequence_number: 5
-      )
+      }
 
-      assert event.sequence_number == 5
+      {:ok, saved_event} = Eventual.save_event(event)
+
+      assert saved_event.sequence_number == 5
     end
   end
 
   describe "save_events/1" do
     test "saves multiple events in a transaction" do
       events = [
-        %{
+        %Event{
           event_type: "user.created",
           aggregate_id: "user-1",
           aggregate_type: "User",
           data: %{name: "Alice"}
         },
-        %{
+        %Event{
           event_type: "user.created",
           aggregate_id: "user-2",
           aggregate_type: "User",
@@ -94,12 +104,14 @@ defmodule EventualTest do
 
   describe "get_event/1" do
     test "retrieves an event by ID" do
-      {:ok, created_event} = Eventual.save_event(
-        "user.created",
-        "user-123",
-        "User",
-        %{name: "John"}
-      )
+      event = %Event{
+        event_type: "user.created",
+        aggregate_id: "user-123",
+        aggregate_type: "User",
+        data: %{name: "John"}
+      }
+
+      {:ok, created_event} = Eventual.save_event(event)
 
       {:ok, retrieved_event} = Eventual.get_event(created_event.id)
 
@@ -116,9 +128,9 @@ defmodule EventualTest do
   describe "list_events/1" do
     setup do
       # Create some test events
-      Eventual.save_event("user.created", "user-1", "User", %{name: "Alice"})
-      Eventual.save_event("user.created", "user-2", "User", %{name: "Bob"})
-      Eventual.save_event("order.placed", "order-1", "Order", %{total: 100})
+      Eventual.save_event(%Event{event_type: "user.created", aggregate_id: "user-1", aggregate_type: "User", data: %{name: "Alice"}})
+      Eventual.save_event(%Event{event_type: "user.created", aggregate_id: "user-2", aggregate_type: "User", data: %{name: "Bob"}})
+      Eventual.save_event(%Event{event_type: "order.placed", aggregate_id: "order-1", aggregate_type: "Order", data: %{total: 100}})
       :ok
     end
 
@@ -148,12 +160,12 @@ defmodule EventualTest do
   describe "get_aggregate_events/3" do
     test "retrieves all events for a specific aggregate" do
       # Create multiple events for the same aggregate
-      Eventual.save_event("user.created", "user-123", "User", %{name: "John"}, sequence_number: 1)
-      Eventual.save_event("user.updated", "user-123", "User", %{email: "john@example.com"}, sequence_number: 2)
-      Eventual.save_event("user.updated", "user-123", "User", %{name: "John Doe"}, sequence_number: 3)
+      Eventual.save_event(%Event{event_type: "user.created", aggregate_id: "user-123", aggregate_type: "User", data: %{name: "John"}, sequence_number: 1})
+      Eventual.save_event(%Event{event_type: "user.updated", aggregate_id: "user-123", aggregate_type: "User", data: %{email: "john@example.com"}, sequence_number: 2})
+      Eventual.save_event(%Event{event_type: "user.updated", aggregate_id: "user-123", aggregate_type: "User", data: %{name: "John Doe"}, sequence_number: 3})
 
       # Create event for different aggregate
-      Eventual.save_event("user.created", "user-456", "User", %{name: "Jane"}, sequence_number: 1)
+      Eventual.save_event(%Event{event_type: "user.created", aggregate_id: "user-456", aggregate_type: "User", data: %{name: "Jane"}, sequence_number: 1})
 
       events = Eventual.get_aggregate_events("User", "user-123")
 
@@ -165,9 +177,9 @@ defmodule EventualTest do
     end
 
     test "retrieves events after a specific sequence number" do
-      Eventual.save_event("user.created", "user-123", "User", %{name: "John"}, sequence_number: 1)
-      Eventual.save_event("user.updated", "user-123", "User", %{email: "john@example.com"}, sequence_number: 2)
-      Eventual.save_event("user.updated", "user-123", "User", %{name: "John Doe"}, sequence_number: 3)
+      Eventual.save_event(%Event{event_type: "user.created", aggregate_id: "user-123", aggregate_type: "User", data: %{name: "John"}, sequence_number: 1})
+      Eventual.save_event(%Event{event_type: "user.updated", aggregate_id: "user-123", aggregate_type: "User", data: %{email: "john@example.com"}, sequence_number: 2})
+      Eventual.save_event(%Event{event_type: "user.updated", aggregate_id: "user-123", aggregate_type: "User", data: %{name: "John Doe"}, sequence_number: 3})
 
       events = Eventual.get_aggregate_events("User", "user-123", from_sequence: 1)
 
@@ -177,37 +189,58 @@ defmodule EventualTest do
     end
   end
 
-  describe "save_snapshot/5" do
+  describe "save_snapshot/1" do
     test "saves a snapshot successfully" do
       state = %{name: "John Doe", email: "john@example.com", balance: 1000}
 
-      {:ok, snapshot} = Eventual.save_snapshot("User", "user-123", state, 100)
+      snapshot = %Snapshot{
+        aggregate_type: "User",
+        aggregate_id: "user-123",
+        data: state,
+        sequence_number: 100
+      }
 
-      assert snapshot.aggregate_type == "User"
-      assert snapshot.aggregate_id == "user-123"
-      assert snapshot.data == state
-      assert snapshot.sequence_number == 100
-      assert snapshot.metadata == %{}
-      assert snapshot.id != nil
+      {:ok, saved_snapshot} = Eventual.save_snapshot(snapshot)
+
+      assert saved_snapshot.aggregate_type == "User"
+      assert saved_snapshot.aggregate_id == "user-123"
+      assert saved_snapshot.data == state
+      assert saved_snapshot.sequence_number == 100
+      assert saved_snapshot.metadata == %{}
+      assert saved_snapshot.id != nil
     end
 
     test "saves snapshot with metadata" do
-      {:ok, snapshot} = Eventual.save_snapshot(
-        "User",
-        "user-123",
-        %{name: "John"},
-        50,
+      snapshot = %Snapshot{
+        aggregate_type: "User",
+        aggregate_id: "user-123",
+        data: %{name: "John"},
+        sequence_number: 50,
         metadata: %{created_by: "system"}
-      )
+      }
 
-      assert snapshot.metadata == %{created_by: "system"}
+      {:ok, saved_snapshot} = Eventual.save_snapshot(snapshot)
+
+      assert saved_snapshot.metadata == %{created_by: "system"}
     end
 
     test "prevents duplicate snapshots at same sequence number" do
-      Eventual.save_snapshot("User", "user-123", %{name: "John"}, 50)
+      snapshot1 = %Snapshot{
+        aggregate_type: "User",
+        aggregate_id: "user-123",
+        data: %{name: "John"},
+        sequence_number: 50
+      }
+      Eventual.save_snapshot(snapshot1)
 
       # Trying to save another snapshot at the same sequence should fail
-      assert {:error, changeset} = Eventual.save_snapshot("User", "user-123", %{name: "Jane"}, 50)
+      snapshot2 = %Snapshot{
+        aggregate_type: "User",
+        aggregate_id: "user-123",
+        data: %{name: "Jane"},
+        sequence_number: 50
+      }
+      assert {:error, changeset} = Eventual.save_snapshot(snapshot2)
       assert changeset.errors != []
     end
   end
@@ -215,9 +248,9 @@ defmodule EventualTest do
   describe "get_latest_snapshot/2" do
     test "retrieves the latest snapshot for an aggregate" do
       # Create multiple snapshots
-      Eventual.save_snapshot("User", "user-123", %{version: 1}, 10)
-      Eventual.save_snapshot("User", "user-123", %{version: 2}, 20)
-      Eventual.save_snapshot("User", "user-123", %{version: 3}, 30)
+      Eventual.save_snapshot(%Snapshot{aggregate_type: "User", aggregate_id: "user-123", data: %{version: 1}, sequence_number: 10})
+      Eventual.save_snapshot(%Snapshot{aggregate_type: "User", aggregate_id: "user-123", data: %{version: 2}, sequence_number: 20})
+      Eventual.save_snapshot(%Snapshot{aggregate_type: "User", aggregate_id: "user-123", data: %{version: 3}, sequence_number: 30})
 
       {:ok, snapshot} = Eventual.get_latest_snapshot("User", "user-123")
 
@@ -232,8 +265,8 @@ defmodule EventualTest do
 
   describe "get_snapshot_at/3" do
     test "retrieves a snapshot at specific sequence number" do
-      Eventual.save_snapshot("User", "user-123", %{version: 1}, 10)
-      Eventual.save_snapshot("User", "user-123", %{version: 2}, 20)
+      Eventual.save_snapshot(%Snapshot{aggregate_type: "User", aggregate_id: "user-123", data: %{version: 1}, sequence_number: 10})
+      Eventual.save_snapshot(%Snapshot{aggregate_type: "User", aggregate_id: "user-123", data: %{version: 2}, sequence_number: 20})
 
       {:ok, snapshot} = Eventual.get_snapshot_at("User", "user-123", 10)
 
@@ -248,9 +281,9 @@ defmodule EventualTest do
 
   describe "list_snapshots/3" do
     test "lists all snapshots for an aggregate" do
-      Eventual.save_snapshot("User", "user-123", %{version: 1}, 10)
-      Eventual.save_snapshot("User", "user-123", %{version: 2}, 20)
-      Eventual.save_snapshot("User", "user-123", %{version: 3}, 30)
+      Eventual.save_snapshot(%Snapshot{aggregate_type: "User", aggregate_id: "user-123", data: %{version: 1}, sequence_number: 10})
+      Eventual.save_snapshot(%Snapshot{aggregate_type: "User", aggregate_id: "user-123", data: %{version: 2}, sequence_number: 20})
+      Eventual.save_snapshot(%Snapshot{aggregate_type: "User", aggregate_id: "user-123", data: %{version: 3}, sequence_number: 30})
 
       snapshots = Eventual.list_snapshots("User", "user-123")
 
@@ -262,9 +295,9 @@ defmodule EventualTest do
     end
 
     test "limits number of snapshots" do
-      Eventual.save_snapshot("User", "user-123", %{version: 1}, 10)
-      Eventual.save_snapshot("User", "user-123", %{version: 2}, 20)
-      Eventual.save_snapshot("User", "user-123", %{version: 3}, 30)
+      Eventual.save_snapshot(%Snapshot{aggregate_type: "User", aggregate_id: "user-123", data: %{version: 1}, sequence_number: 10})
+      Eventual.save_snapshot(%Snapshot{aggregate_type: "User", aggregate_id: "user-123", data: %{version: 2}, sequence_number: 20})
+      Eventual.save_snapshot(%Snapshot{aggregate_type: "User", aggregate_id: "user-123", data: %{version: 3}, sequence_number: 30})
 
       snapshots = Eventual.list_snapshots("User", "user-123", limit: 2)
 
@@ -275,15 +308,15 @@ defmodule EventualTest do
   describe "get_aggregate_state/2" do
     test "returns snapshot and subsequent events" do
       # Create some events
-      Eventual.save_event("user.created", "user-123", "User", %{name: "John"}, sequence_number: 1)
-      Eventual.save_event("user.updated", "user-123", "User", %{email: "john@example.com"}, sequence_number: 2)
+      Eventual.save_event(%Event{event_type: "user.created", aggregate_id: "user-123", aggregate_type: "User", data: %{name: "John"}, sequence_number: 1})
+      Eventual.save_event(%Event{event_type: "user.updated", aggregate_id: "user-123", aggregate_type: "User", data: %{email: "john@example.com"}, sequence_number: 2})
 
       # Create a snapshot after event 2
-      Eventual.save_snapshot("User", "user-123", %{name: "John", email: "john@example.com"}, 2)
+      Eventual.save_snapshot(%Snapshot{aggregate_type: "User", aggregate_id: "user-123", data: %{name: "John", email: "john@example.com"}, sequence_number: 2})
 
       # Create more events after snapshot
-      Eventual.save_event("user.updated", "user-123", "User", %{name: "John Doe"}, sequence_number: 3)
-      Eventual.save_event("user.updated", "user-123", "User", %{balance: 100}, sequence_number: 4)
+      Eventual.save_event(%Event{event_type: "user.updated", aggregate_id: "user-123", aggregate_type: "User", data: %{name: "John Doe"}, sequence_number: 3})
+      Eventual.save_event(%Event{event_type: "user.updated", aggregate_id: "user-123", aggregate_type: "User", data: %{balance: 100}, sequence_number: 4})
 
       {snapshot, events} = Eventual.get_aggregate_state("User", "user-123")
 
@@ -295,8 +328,8 @@ defmodule EventualTest do
     end
 
     test "returns all events when no snapshot exists" do
-      Eventual.save_event("user.created", "user-123", "User", %{name: "John"}, sequence_number: 1)
-      Eventual.save_event("user.updated", "user-123", "User", %{email: "john@example.com"}, sequence_number: 2)
+      Eventual.save_event(%Event{event_type: "user.created", aggregate_id: "user-123", aggregate_type: "User", data: %{name: "John"}, sequence_number: 1})
+      Eventual.save_event(%Event{event_type: "user.updated", aggregate_id: "user-123", aggregate_type: "User", data: %{email: "john@example.com"}, sequence_number: 2})
 
       {snapshot, events} = Eventual.get_aggregate_state("User", "user-123")
 
@@ -308,15 +341,15 @@ defmodule EventualTest do
   describe "rebuild_from_snapshot/4" do
     test "rebuilds state from snapshot and subsequent events" do
       # Create events
-      Eventual.save_event("user.created", "user-123", "User", %{name: "John", balance: 0}, sequence_number: 1)
-      Eventual.save_event("user.balance_changed", "user-123", "User", %{amount: 100}, sequence_number: 2)
+      Eventual.save_event(%Event{event_type: "user.created", aggregate_id: "user-123", aggregate_type: "User", data: %{name: "John", balance: 0}, sequence_number: 1})
+      Eventual.save_event(%Event{event_type: "user.balance_changed", aggregate_id: "user-123", aggregate_type: "User", data: %{amount: 100}, sequence_number: 2})
 
       # Create snapshot
-      Eventual.save_snapshot("User", "user-123", %{name: "John", balance: 100}, 2)
+      Eventual.save_snapshot(%Snapshot{aggregate_type: "User", aggregate_id: "user-123", data: %{name: "John", balance: 100}, sequence_number: 2})
 
       # More events after snapshot
-      Eventual.save_event("user.balance_changed", "user-123", "User", %{amount: 50}, sequence_number: 3)
-      Eventual.save_event("user.balance_changed", "user-123", "User", %{amount: -30}, sequence_number: 4)
+      Eventual.save_event(%Event{event_type: "user.balance_changed", aggregate_id: "user-123", aggregate_type: "User", data: %{amount: 50}, sequence_number: 3})
+      Eventual.save_event(%Event{event_type: "user.balance_changed", aggregate_id: "user-123", aggregate_type: "User", data: %{amount: -30}, sequence_number: 4})
 
       # Define event application function
       apply_event = fn event, state ->
@@ -340,8 +373,8 @@ defmodule EventualTest do
     end
 
     test "rebuilds from scratch when no snapshot exists" do
-      Eventual.save_event("user.created", "user-123", "User", %{name: "Alice", balance: 0}, sequence_number: 1)
-      Eventual.save_event("user.balance_changed", "user-123", "User", %{amount: 75}, sequence_number: 2)
+      Eventual.save_event(%Event{event_type: "user.created", aggregate_id: "user-123", aggregate_type: "User", data: %{name: "Alice", balance: 0}, sequence_number: 1})
+      Eventual.save_event(%Event{event_type: "user.balance_changed", aggregate_id: "user-123", aggregate_type: "User", data: %{amount: 75}, sequence_number: 2})
 
       apply_event = fn event, state ->
         case event.event_type do
